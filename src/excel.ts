@@ -19,15 +19,11 @@ type KVData = {
 }
 
 type SheetData = {
-    [key: string]: string | KVData | KVData[] | null
+    [key: string]: string | KVData | KVData[]
 }
 
 type Data = {
     [tabName: string]: SheetData
-}
-
-function assertIsString(arg: any): asserts arg is string {
-    if (typeof arg !== 'string') throw Error(`${arg} is not string value.`)
 }
 
 function parseSheet(sheet: Xlsx.WorkSheet): Tokens {
@@ -111,25 +107,17 @@ function parse(tokens: Tokens, data: Data = {}): Data {
             currentSheetObj[currentH2] = {}
         }
         if (token.type === 'array') {
-            // 特殊な状況だが、シートに小項目なしに Array がある場合
-            if (currentH2 === null && !Array.isArray(currentSheetObj)) {
-                currentSheetObj['__array'] = [{
-                    [token.key]: token.value
-                }]
-                firstArrayKey = token.key
-            }
-            if (currentH2 === null && Array.isArray(currentSheetObj)) {
-                const self = currentSheetObj['__array'] as KVData[]
-                if (token.key === firstArrayKey) {
-                    self.push({
-                        [token.key]: token.value
-                    })
-                } else {
-                    self[self.length - 1]!![token.key] = token.value
-                }
+            //シートに小項目なしに Array がある場合
+            if (currentH2 === null) {
+                throw Error('配列は小項目でのみ使用できます。')
             }
 
-            assertIsString(currentH2)
+            if (typeof currentSheetObj[currentH2] === 'string') {
+                throw Error('小項目に配列を含むとき、その小項目では他の要素は使用できません。')
+            }
+            if (!Array.isArray(currentSheetObj[currentH2]) && Object.keys(currentSheetObj[currentH2] as any).length > 0) {
+                throw Error('小項目に配列を含むとき、その小項目では他の要素は使用できません。')
+            }
 
             if (!Array.isArray(currentSheetObj[currentH2])) {
                 currentSheetObj[currentH2] = [{
@@ -146,6 +134,9 @@ function parse(tokens: Tokens, data: Data = {}): Data {
                     self[self.length - 1]!![token.key] = token.value
                 }
             }
+        }
+        if (token.type === 'h1') {
+            throw Error('シート名は最初の行にしか記述できません。')
         }
     }
 
