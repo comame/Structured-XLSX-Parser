@@ -1,11 +1,15 @@
 import Xlsx from 'xlsx'
 
-const file = Xlsx.readFile('./sample.xlsx')
+export function parseExcelToJson(excel: Uint8Array): Data {
+    const data = {} as Data
+    const file = Xlsx.read(excel)
 
-for (const sheetName of file.SheetNames) {
-    const tokens = parseSheet(file.Sheets[sheetName]!!)
-    const data = parse(tokens)
-    console.log(JSON.stringify(data, null, 2))
+    for (const sheetName of file.SheetNames) {
+        const tokens = parseSheet(file.Sheets[sheetName]!!)
+        parse(tokens, data)
+    }
+
+    return data
 }
 
 type Tokens = {
