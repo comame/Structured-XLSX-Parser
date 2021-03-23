@@ -7,7 +7,7 @@ exports.parseExcelToJson = void 0;
 var xlsx_1 = __importDefault(require("xlsx"));
 function parseExcelToJson(excel) {
     var data = {};
-    var file = xlsx_1.default.read(excel);
+    var file = xlsx_1.default.read(excel, { type: 'array' });
     for (var _i = 0, _a = file.SheetNames; _i < _a.length; _i++) {
         var sheetName = _a[_i];
         var tokens = parseSheet(file.Sheets[sheetName]);

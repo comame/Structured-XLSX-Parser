@@ -2,7 +2,7 @@ import Xlsx from 'xlsx'
 
 export function parseExcelToJson(excel: Uint8Array): Data {
     const data = {} as Data
-    const file = Xlsx.read(excel)
+    const file = Xlsx.read(excel, { type: 'array' })
 
     for (const sheetName of file.SheetNames) {
         const tokens = parseSheet(file.Sheets[sheetName]!!)
