@@ -1,5 +1,5 @@
 {
-  "name": "rikoten-excel-reader",
+  "name": "structured-xlsx-parser",
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
