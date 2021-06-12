@@ -5,18 +5,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseExcelToJson = void 0;
 var xlsx_1 = __importDefault(require("xlsx"));
-function parseExcelToJson(excel) {
+function parseExcelToJson(excel, fileName) {
     var data = {};
     var file = xlsx_1.default.read(excel, { type: 'array' });
     for (var _i = 0, _a = file.SheetNames; _i < _a.length; _i++) {
         var sheetName = _a[_i];
-        var tokens = parseSheet(file.Sheets[sheetName]);
-        parse(tokens, data);
+        var tokens = tokenize(file.Sheets[sheetName], sheetName, fileName);
+        parse(tokens, data, fileName);
     }
     return data;
 }
 exports.parseExcelToJson = parseExcelToJson;
-function parseSheet(sheet) {
+function riseError(message, token, fileName) {
+    throw Error(message + (" at " + fileName + " (" + token.sheetName + ":" + token.cell + ")"));
+}
+function tokenize(sheet, sheetName, fileName) {
     var _a, _b;
     var keyColumnCellNames = Object.keys(sheet).filter(function (it) { return it.startsWith('A'); }).sort(function (a, b) {
         var aNum = Number.parseInt(a.slice(1));
@@ -46,39 +49,47 @@ function parseSheet(sheet) {
             data.push({
                 type: 'array',
                 key: key.slice(1),
-                value: value
+                value: value,
+                cell: keyCellName,
+                sheetName: sheetName
             });
         }
         else if (key.startsWith('\t\t')) {
             data.push({
                 type: 'h2',
                 key: key.slice(2),
-                value: value
+                value: value,
+                cell: keyCellName,
+                sheetName: sheetName
             });
         }
         else if (key.startsWith('\t')) {
             data.push({
                 type: 'h1',
                 key: key.slice(1),
-                value: value
+                value: value,
+                cell: keyCellName,
+                sheetName: sheetName
             });
         }
         else {
             data.push({
                 type: 'normal',
                 key: key,
-                value: value
+                value: value,
+                cell: keyCellName,
+                sheetName: sheetName
             });
         }
     }
-    throw Error("\u672B\u5C3E\u306B __ \u304C\u3042\u308A\u307E\u305B\u3093");
+    riseError("\u672B\u5C3E\u306B __ \u304C\u3042\u308A\u307E\u305B\u3093", { cell: '', sheetName: sheetName }, fileName);
 }
-function parse(tokens, data) {
+function parse(tokens, data, fileName) {
     var _a, _b;
     var _c;
     if (data === void 0) { data = {}; }
     if (((_c = tokens[0]) === null || _c === void 0 ? void 0 : _c.type) !== 'h1') {
-        throw Error('最初の行がシート名ではありません');
+        riseError('最初の行がシート名ではありません', tokens[0], fileName);
     }
     var currentSheetObj = {};
     var currentH2 = null;
@@ -101,13 +112,13 @@ function parse(tokens, data) {
         if (token.type === 'array') {
             //シートに小項目なしに Array がある場合
             if (currentH2 === null) {
-                throw Error('配列は小項目でのみ使用できます。');
+                riseError('配列は小項目でのみ使用できます。', token, fileName);
             }
             if (typeof currentSheetObj[currentH2] === 'string') {
-                throw Error('小項目に配列を含むとき、その小項目では他の要素は使用できません。');
+                riseError('小項目に配列を含むとき、その小項目では他の要素は使用できません。', token, fileName);
             }
             if (!Array.isArray(currentSheetObj[currentH2]) && Object.keys(currentSheetObj[currentH2]).length > 0) {
-                throw Error('小項目に配列を含むとき、その小項目では他の要素は使用できません。');
+                riseError('小項目に配列を含むとき、その小項目では他の要素は使用できません。', token, fileName);
             }
             if (!Array.isArray(currentSheetObj[currentH2])) {
                 currentSheetObj[currentH2] = [(_a = {},
@@ -128,7 +139,7 @@ function parse(tokens, data) {
             }
         }
         if (token.type === 'h1') {
-            throw Error('シート名は最初の行にしか記述できません。');
+            riseError('シート名は最初の行にしか記述できません。', token, fileName);
         }
     }
     data[tokens[0].key] = currentSheetObj;

@@ -1,22 +1,25 @@
 import Xlsx from 'xlsx'
 
-export function parseExcelToJson(excel: Uint8Array): Data {
+export function parseExcelToJson(excel: Uint8Array, fileName: string): Data {
     const data = {} as Data
     const file = Xlsx.read(excel, { type: 'array' })
 
     for (const sheetName of file.SheetNames) {
-        const tokens = parseSheet(file.Sheets[sheetName]!!)
-        parse(tokens, data)
+        const tokens = tokenize(file.Sheets[sheetName]!!, sheetName, fileName)
+        parse(tokens, data, fileName)
     }
 
     return data
 }
 
-type Tokens = {
+type Token = {
     type: 'h1' | 'h2' | 'array' | 'normal',
     key: string,
-    value: string
-}[]
+    value: string,
+
+    cell: string,
+    sheetName: string
+}
 
 type KVData = {
     [key: string]: string
@@ -30,7 +33,11 @@ type Data = {
     [tabName: string]: SheetData
 }
 
-function parseSheet(sheet: Xlsx.WorkSheet): Tokens {
+function riseError(message: string, token: Pick<Token, "cell"|"sheetName">, fileName: string): never {
+    throw Error(message + ` at ${fileName} (${token.sheetName}:${token.cell})`)
+}
+
+function tokenize(sheet: Xlsx.WorkSheet, sheetName: string, fileName: string): Token[] {
     const keyColumnCellNames = Object.keys(sheet).filter(it => it.startsWith('A')).sort((a, b) => {
         const aNum = Number.parseInt(a.slice(1))
         const bNum = Number.parseInt(b.slice(1))
@@ -38,7 +45,7 @@ function parseSheet(sheet: Xlsx.WorkSheet): Tokens {
     })
 
     let started = false
-    const data: Tokens = []
+    const data: Token[] = []
 
     for (const keyCellName of keyColumnCellNames) {
         const key: unknown = sheet[keyCellName].w
@@ -61,35 +68,43 @@ function parseSheet(sheet: Xlsx.WorkSheet): Tokens {
             data.push({
                 type: 'array',
                 key: key.slice(1),
-                value
+                value,
+                cell: keyCellName,
+                sheetName
             })
         } else if (key.startsWith('\t\t')) {
             data.push({
                 type: 'h2',
                 key: key.slice(2),
-                value
+                value,
+                cell: keyCellName,
+                sheetName
             })
         } else if (key.startsWith('\t')) {
             data.push({
                 type: 'h1',
                 key: key.slice(1),
-                value
+                value,
+                cell: keyCellName,
+                sheetName
             })
         } else {
             data.push({
                 type: 'normal',
                 key,
-                value
+                value,
+                cell: keyCellName,
+                sheetName
             })
         }
     }
 
-    throw Error(`末尾に __ がありません`)
+    riseError(`末尾に __ がありません`, { cell: '', sheetName }, fileName)
 }
 
-function parse(tokens: Tokens, data: Data = {}): Data {
+function parse(tokens: Token[], data: Data = {}, fileName: string): Data {
     if (tokens[0]?.type !== 'h1') {
-        throw Error('最初の行がシート名ではありません')
+        riseError('最初の行がシート名ではありません', tokens[0]!!, fileName)
     }
 
     const currentSheetObj: SheetData = {}
@@ -113,14 +128,14 @@ function parse(tokens: Tokens, data: Data = {}): Data {
         if (token.type === 'array') {
             //シートに小項目なしに Array がある場合
             if (currentH2 === null) {
-                throw Error('配列は小項目でのみ使用できます。')
+                riseError('配列は小項目でのみ使用できます。', token, fileName)
             }
 
             if (typeof currentSheetObj[currentH2] === 'string') {
-                throw Error('小項目に配列を含むとき、その小項目では他の要素は使用できません。')
+                riseError('小項目に配列を含むとき、その小項目では他の要素は使用できません。', token, fileName)
             }
             if (!Array.isArray(currentSheetObj[currentH2]) && Object.keys(currentSheetObj[currentH2] as any).length > 0) {
-                throw Error('小項目に配列を含むとき、その小項目では他の要素は使用できません。')
+                riseError('小項目に配列を含むとき、その小項目では他の要素は使用できません。', token, fileName)
             }
 
             if (!Array.isArray(currentSheetObj[currentH2])) {
@@ -140,7 +155,7 @@ function parse(tokens: Tokens, data: Data = {}): Data {
             }
         }
         if (token.type === 'h1') {
-            throw Error('シート名は最初の行にしか記述できません。')
+            riseError('シート名は最初の行にしか記述できません。', token, fileName)
         }
     }
 

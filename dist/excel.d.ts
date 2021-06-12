@@ -1,4 +1,4 @@
-export declare function parseExcelToJson(excel: Uint8Array): Data;
+export declare function parseExcelToJson(excel: Uint8Array, fileName: string): Data;
 declare type KVData = {
     [key: string]: string;
 };
